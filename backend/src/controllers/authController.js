@@ -4,61 +4,89 @@ const prisma = require('../config/prisma');
 
 const register = async (req, res) => {
     try {
-        const { username, password } = req.body;
+        const { nis, username, password } = req.body;
 
-        //validasi
-        if (!username || !password) {
+        // Validasi input
+        if (!nis || !username || !password) {
             return res.status(400).json({
                 success: false,
-                message: 'Username dan password wajib diisi',
+                message: "NIS, username, dan password wajib diisi",
             });
         }
 
         if (password.length < 6) {
             return res.status(400).json({
                 success: false,
-                message: 'Password minimal 6 karakter',
+                message: "Password minimal 6 karakter",
             });
         }
 
-        //cek username dan password
-        const existingUser = await prisma.user.findUnique({
-            where: { username },
-        });
-
-        if (existingUser) {
-            return res.status(409).json({
-                success: false,
-                message: 'Username sudah digunakan',
-            });
-        }
-
-        //hash password
-        const hashedPassword = await bcrypt.hash(password, 10);
-
-        //buat user admin
-        const user = await prisma.user.create({
-            data: {
-                username,
-                password: hashedPassword,
-                role: 'ADMIN',
+        // Cari siswa berdasarkan NIS
+        const student = await prisma.student.findUnique({
+            where: {
+                nis,
             },
         });
+
+        if (!student) {
+            return res.status(404).json({
+                success: false,
+                message: "NIS tidak terdaftar. Hubungi guru/admin.",
+            });
+        }
+
+        // Cek apakah siswa sudah memiliki akun
+        const existingStudentAccount = await prisma.user.findUnique({
+            where: {
+                studentId: student.id,
+            },
+        });
+
+        if (existingStudentAccount) {
+            return res.status(409).json({
+                success: false,
+                message: "Siswa sudah memiliki akun",
+            });
+        }
+
+        // Cek username
+        const existingUsername = await prisma.user.findUnique({
+            where: {
+                username,
+            },
+        });
+
+        if (existingUsername) {
+            return res.status(409).json({
+                success: false,
+                message: "Username sudah digunakan",
+            });
+        }
+
+        // Hash password
+        const hashedPassword = await bcrypt.hash(password, 10);
+
+        // Buat akun siswa
+        const user = await prisma.user.create({
+    data: {
+        username,
+        password: hashedPassword,
+        role: "STUDENT",
+        studentId: student.id,
+    },
+});
 
         res.status(201).json({
             success: true,
-            message: 'Admin berhasil dibuat',
-            data: {
-                id: user.id,
-                username: user.username,
-                role: user.role,
-            },
+            message: "Akun siswa berhasil dibuat",
+            data: user,
         });
     } catch (error) {
-        console.error("Register error:", error);
+        console.error("Register student error:", error);
+
         res.status(500).json({
             success: false,
-            message: 'Terjadi kesalahan pada server',
+            message: "Terjadi kesalahan pada server",
         });
     }
 };
