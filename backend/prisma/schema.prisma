@@ -1,0 +1,59 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+
+}
+model User {
+  id        Int      @id @default(autoincrement())
+  username  String   @unique
+  password  String
+  role      Role    @default(ADMIN)
+  studentId Int?     @unique
+  student   Student? @relation(fields: [studentId], references: [id])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Student {
+  id       Int      @id @default(autoincrement())
+  nisn     String   @unique
+  nama     String
+  kelas    String
+  jurusan  String
+  qrToken  String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user      User?
+  attendances Attendance[]
+}
+
+model Attendance {
+  id        Int      @id @default(autoincrement())
+  studentId Int
+  tanggal   DateTime @default(now())
+  jamMasuk  DateTime?
+  jamPulang DateTime?
+  status    AttendanceStatus @default(HADIR)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  student   Student  @relation(fields: [studentId], references: [id])
+
+  @@unique([studentId, tanggal])
+
+}
+enum Role {
+  ADMIN
+  STUDENT
+}
+
+enum AttendanceStatus {
+  HADIR
+  SAKIT
+  IZIN
+  ALPHA
+}
