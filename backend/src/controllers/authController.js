@@ -128,8 +128,45 @@ const login = async (req, res) => {
     }
 };
 
+const me = async (req, res) => {
+    try {
+        const user = await prisma.user.findUnique({
+            where: {
+                id: req.user.userId,
+            },
+            select: {
+                id: true,
+                username: true,
+                role: true,
+                studentId: true,
+                createdAt: true,
+            },
+        });
+
+        if (!user) {
+            return res.status(404).json({
+                success: false,
+                message: "User tidak ditemukan",
+            });
+        }
+
+        res.json({
+            success: true,
+            data: user,
+        });
+    } catch (error) {
+        console.error("Me error:", error);
+
+        res.status(500).json({
+            success: false,
+            message: "Terjadi kesalahan pada server",
+        });
+    }
+};
+
 module.exports = {
     register,
     login,
+    me,
 
 };
