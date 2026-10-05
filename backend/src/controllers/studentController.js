@@ -5,6 +5,7 @@ const QRcode = require("qrcode");
 const {
     formatDateWIB,
     formatDateTimeWIB,
+    getTodayWIB,
 } = require("../utils/dateUtils");
 
 // GET semua siswa
@@ -370,7 +371,7 @@ const getStudentQR = async (req, res) => {
 
 const getStudentProfile = async (req, res) => {
     try {
-        const userId = req.user.id;
+        const userId = req.user.userId;
 
         const user = await prisma.user.findUnique({
             where: {
@@ -424,7 +425,7 @@ const getStudentProfile = async (req, res) => {
 
 const getStudentAttendance = async (req, res) => {
     try {
-        const userId = req.user.id;
+        const userId = req.user.userId;
 
         const user = await prisma.user.findUnique({
             where: {
@@ -531,6 +532,76 @@ const getStudentAttendance = async (req, res) => {
         });
     }
 };
+
+// GET ABSENSI HARI INI SISWA
+const getStudentTodayAttendance = async (req, res) => {
+    try {
+        const userId = req.user.userId;
+
+        // Cari akun user dan studentId
+        const user = await prisma.user.findUnique({
+            where: {
+                id: userId,
+            },
+            select: {
+                studentId: true,
+            },
+        });
+
+        if (!user || !user.studentId) {
+            return res.status(404).json({
+                success: false,
+                message: "Data siswa tidak ditemukan",
+            });
+        }
+
+        // Ambil tanggal hari ini
+        const now = new Date();
+
+        const today = getTodayWIB();
+
+        // Cari absensi hari ini
+        const attendance = await prisma.attendance.findUnique({
+            where: {
+                studentId_tanggal: {
+                    studentId: user.studentId,
+                    tanggal: today,
+                },
+            },
+            select: {
+                id: true,
+                tanggal: true,
+                jamMasuk: true,
+                jamPulang: true,
+                status: true,
+            },
+        });
+
+        res.status(200).json({
+            success: true,
+            data: {
+                tanggal: formatDateWIB(today),
+                sudahAbsen: !!attendance,
+                absensi: attendance
+                    ? {
+                          id: attendance.id,
+                          tanggal: formatDateWIB(attendance.tanggal),
+                          jamMasuk: formatDateTimeWIB(attendance.jamMasuk),
+                          jamPulang: formatDateTimeWIB(attendance.jamPulang),
+                          status: attendance.status,
+                      }
+                    : null,
+            },
+        });
+    } catch (error) {
+        console.error("Get student today attendance error:", error);
+
+        res.status(500).json({
+            success: false,
+            message: "Gagal mengambil absensi hari ini",
+        });
+    }
+};
 module.exports = {
     getStudents,
     getStudentById,
@@ -540,4 +611,5 @@ module.exports = {
     getStudentQR,
     getStudentProfile,
     getStudentAttendance,
+    getStudentTodayAttendance,
 };

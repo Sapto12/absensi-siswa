@@ -11,9 +11,22 @@ const roleMiddleware = require("../middleware/roleMiddleware");
 
 const router = express.Router();
 
-router.post("/scan", scanAttendance);
-router.post("/checkout", checkoutAttendance);
+// Absensi siswa
+router.post(
+    "/scan",
+    authMiddleware,
+    roleMiddleware("STUDENT"),
+    scanAttendance
+);
 
+router.post(
+    "/checkout",
+    authMiddleware,
+    roleMiddleware("STUDENT"),
+    checkoutAttendance
+);
+
+// Data absensi untuk admin
 router.get(
     "/today",
     authMiddleware,

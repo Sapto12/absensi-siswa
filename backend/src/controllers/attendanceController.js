@@ -1,123 +1,52 @@
 const prisma = require("../config/prisma");
-
 const {
+    getTodayWIB,
+    getCurrentHourWIB,
     formatDateWIB,
     formatDateTimeWIB,
 } = require("../utils/dateUtils");
 
 
-const scanAttendance = async (req, res)=> {
-    try {
-        const {studentId, token } = req. body;
 
-        if (!studentId || !token){
-            return res.status(400).json({
-                success: false,
-                message: "student ID dan token qr wajib diisi",
-            });
-        }
-
-        const student = await prisma. student.findFirst({
-            where:{
-                id: Number(studentId),
-                qrToken: token,
-            },
-        });
-
-        if(!student){
-            return res.status(404).json({
-                success: false,
-                message: "QR Code tidak valid",
-
-            });
-
-        }
-        const now =new Date();
-
-        // mengambil tanggal hari ini
-
-        const tanggal = new Date(
-            now.getFullYear(),
-            now.getMonth(),
-            now.getDate()
-        );
-
-        //cek sudah aben/belum
-
-        const existingAttendance = await prisma.attendance.findUnique({
-            where: {
-                studentId_tanggal:{
-                    studentId: student.id,
-                    tanggal,
-                },
-            },
-        });
-
-
-        if (existingAttendance){
-            return res.status(409).json({
-                success: false,
-                message: "siswa sudah melakukan absensi hari ini",
-                data: existingAttendance,
-            });
-
-        }
-
-        //batas masuk sekolah
-
-        const batasJamMasuk = 7;
-
-        const status = 
-                now.getHours() >= batasJamMasuk
-                    ? "TERLAMBAT"
-                    : "HADIR";
-
-        const attendance = await prisma.attendance.create({
-            data:{
-                studentId: student.id,
-                tanggal,
-                jamMasuk: now,
-                status,
-            },
-        });
-
-        return res.status(201).json({
-            success: true,
-            message: "absensi berhasil",
-              data: {
-                student: {
-                    id: student.id,
-                    nis: student.nis,
-                    nama: student.nama,
-                    kelas: student.kelas,
-                    jurusan: student.jurusan,
-                },
-                attendance,
-            },
-        });
-    }catch(error){
-        console.error("Scan attendance error:", error);
-
-        return res.status(500).json({
-            success: false,
-            message: "Gagal melakukan absensi",
-        });
-    }
-    
-};
-
-const checkoutAttendance = async (req, res) => {
+const scanAttendance = async (req, res) => {
     try {
         const { studentId, token } = req.body;
 
         if (!studentId || !token) {
             return res.status(400).json({
                 success: false,
-                message: "Student ID dan token QR wajib diisi",
+                message: "QR Code tidak valid",
             });
         }
 
-        // Validasi siswa dan QR token
+        // Ambil user yang sedang login
+        const user = await prisma.user.findUnique({
+            where: {
+                id: req.user.userId,
+            },
+            select: {
+                id: true,
+                studentId: true,
+                role: true,
+            },
+        });
+
+        if (!user || !user.studentId) {
+            return res.status(404).json({
+                success: false,
+                message: "Data siswa tidak ditemukan",
+            });
+        }
+
+        // Pastikan QR milik siswa yang sedang login
+        if (user.studentId !== Number(studentId)) {
+            return res.status(403).json({
+                success: false,
+                message: "QR Code bukan milik akun siswa ini",
+            });
+        }
+
+        // Cari siswa berdasarkan ID + QR token
         const student = await prisma.student.findFirst({
             where: {
                 id: Number(studentId),
@@ -132,21 +61,135 @@ const checkoutAttendance = async (req, res) => {
             });
         }
 
-        // Ambil tanggal hari ini
+        // const now = new Date();
+
+        // const today = new Date(
+        //     now.getFullYear(),
+        //     now.getMonth(),
+        //     now.getDate()
+        // );
+
         const now = new Date();
+        const today = getTodayWIB();
+        const currentHour = getCurrentHourWIB();
 
-        const tanggal = new Date(
-            now.getFullYear(),
-            now.getMonth(),
-            now.getDate()
-        );
+        // Cek apakah sudah absen
+        const existingAttendance = await prisma.attendance.findUnique({
+            where: {
+                studentId_tanggal: {
+                    studentId: student.id,
+                    tanggal: today,
+                },
+            },
+        });
 
-        // Cari absensi siswa hari ini
+        if (existingAttendance) {
+            return res.status(409).json({
+                success: false,
+                message: "Anda sudah melakukan absensi hari ini",
+                data: {
+                    jamMasuk: existingAttendance.jamMasuk
+                        ? formatDateTimeWIB(existingAttendance.jamMasuk)
+                        : null,
+                    status: existingAttendance.status,
+                },
+            });
+        }
+
+        // Batas keterlambatan: jam 07:00
+        const status = currentHour >= 7
+            ? "TERLAMBAT"
+            : "HADIR";
+
+        const attendance = await prisma.attendance.create({
+            data: {
+                studentId: student.id,
+                tanggal: today,
+                jamMasuk: now,
+                status,
+            },
+        });
+
+        return res.status(201).json({
+            success: true,
+            message: "Absensi berhasil",
+            data: {
+                id: attendance.id,
+                studentId: student.id,
+                nama: student.nama,
+                tanggal: formatDateWIB(attendance.tanggal),
+                jamMasuk: formatDateTimeWIB(attendance.jamMasuk),
+                status: attendance.status,
+            },
+        });
+    } catch (error) {
+        console.error("Scan attendance error:", error);
+
+        return res.status(500).json({
+            success: false,
+            message: "Gagal melakukan absensi",
+        });
+    }
+};
+
+const checkoutAttendance = async (req, res) => {
+    try {
+        const { studentId, token } = req.body;
+
+        if (!studentId || !token) {
+            return res.status(400).json({
+                success: false,
+                message: "QR Code tidak valid",
+            });
+        }
+
+        // Ambil user yang sedang login
+        const user = await prisma.user.findUnique({
+            where: {
+                id: req.user.userId,
+            },
+            select: {
+                studentId: true,
+            },
+        });
+
+        if (!user || !user.studentId) {
+            return res.status(404).json({
+                success: false,
+                message: "Data siswa tidak ditemukan",
+            });
+        }
+
+        // Pastikan QR milik siswa yang login
+        if (user.studentId !== Number(studentId)) {
+            return res.status(403).json({
+                success: false,
+                message: "QR Code bukan milik akun siswa ini",
+            });
+        }
+
+        const student = await prisma.student.findFirst({
+            where: {
+                id: Number(studentId),
+                qrToken: token,
+            },
+        });
+
+        if (!student) {
+            return res.status(404).json({
+                success: false,
+                message: "QR Code tidak valid",
+            });
+        }
+
+        const now = new Date();
+        const today = getTodayWIB();
+
         const attendance = await prisma.attendance.findUnique({
             where: {
                 studentId_tanggal: {
                     studentId: student.id,
-                    tanggal,
+                    tanggal: today,
                 },
             },
         });
@@ -154,20 +197,20 @@ const checkoutAttendance = async (req, res) => {
         if (!attendance) {
             return res.status(404).json({
                 success: false,
-                message: "Siswa belum melakukan absensi masuk hari ini",
+                message: "Anda belum melakukan absensi masuk",
             });
         }
 
-        // Cek apakah sudah checkout
         if (attendance.jamPulang) {
             return res.status(409).json({
                 success: false,
-                message: "Siswa sudah melakukan absen pulang hari ini",
-                data: attendance,
+                message: "Anda sudah melakukan absen pulang",
+                data: {
+                    jamPulang: formatDateTimeWIB(attendance.jamPulang),
+                },
             });
         }
 
-        // Simpan jam pulang
         const updatedAttendance = await prisma.attendance.update({
             where: {
                 id: attendance.id,
@@ -181,14 +224,13 @@ const checkoutAttendance = async (req, res) => {
             success: true,
             message: "Absen pulang berhasil",
             data: {
-                student: {
-                    id: student.id,
-                    nis: student.nis,
-                    nama: student.nama,
-                    kelas: student.kelas,
-                    jurusan: student.jurusan,
-                },
-                attendance: updatedAttendance,
+                id: updatedAttendance.id,
+                studentId: student.id,
+                nama: student.nama,
+                tanggal: formatDateWIB(updatedAttendance.tanggal),
+                jamMasuk: formatDateTimeWIB(updatedAttendance.jamMasuk),
+                jamPulang: formatDateTimeWIB(updatedAttendance.jamPulang),
+                status: updatedAttendance.status,
             },
         });
     } catch (error) {
