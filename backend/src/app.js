@@ -5,6 +5,7 @@ require("dotenv").config();
 const prisma = require("./config/prisma");
 const authRoutes = require("./routes/authRoutes");
 const studentRoutes = require("./routes/studentRoutes");
+const attendanceRoutes = require("./routes/attendanceRoutes");
 
 const app = express();
 
@@ -19,6 +20,7 @@ app.use(express.urlencoded({ extended: true }));
 //routes
 app.use("/api/auth", authRoutes);
 app.use("/api/students", studentRoutes);
+app.use("/api/attendance", attendanceRoutes);
 
 // Root endpoint
 app.get("/", (req, res) => {

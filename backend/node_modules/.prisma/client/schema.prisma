@@ -53,6 +53,7 @@ enum Role {
 
 enum AttendanceStatus {
   HADIR
+  TERLAMBAT
   SAKIT
   IZIN
   ALPHA
