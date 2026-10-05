@@ -6,6 +6,7 @@ const {
     createStudent,
     updateStudent,
     deleteStudent,
+    getStudentQR,
 } = require("../controllers/studentController");
 
 const authMiddleware = require("../middleware/authMiddleware");
@@ -21,6 +22,7 @@ router.post("/", createStudent);
 router.get("/:id", getStudentById);
 router.put("/:id", updateStudent);
 router.delete("/:id", deleteStudent);
+router.get("/:id/qr", getStudentQR);
 
 module.exports = router;
 

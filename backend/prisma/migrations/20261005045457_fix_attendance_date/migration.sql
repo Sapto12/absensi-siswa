@@ -1,0 +1,3 @@
+-- AlterTable
+ALTER TABLE "Attendance" ALTER COLUMN "tanggal" DROP DEFAULT,
+ALTER COLUMN "tanggal" SET DATA TYPE DATE;

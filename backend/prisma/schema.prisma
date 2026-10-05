@@ -34,8 +34,8 @@ model Student {
 model Attendance {
   id        Int      @id @default(autoincrement())
   studentId Int
-  tanggal   DateTime @default(now())
-  jamMasuk  DateTime?
+  tanggal   DateTime @db.Date
+  jamMasuk  DateTime? 
   jamPulang DateTime?
   status    AttendanceStatus @default(HADIR)
   createdAt DateTime @default(now())

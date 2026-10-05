@@ -1,5 +1,6 @@
 const { v4: uuidv4 } = require("uuid");
 const prisma = require("../config/prisma");
+const QRcode = require("qrcode");
 
 // GET semua siswa
 const getStudents = async (req, res) => {
@@ -285,6 +286,79 @@ const deleteStudent = async (req, res) => {
         });
     }
 };
+const getStudentQR = async (req, res) => {
+    try {
+        // Ambil ID dari URL
+        const id = Number(req.params.id);
+
+        // Validasi ID
+        if (isNaN(id)) {
+            return res.status(400).json({
+                success: false,
+                message: "ID siswa tidak valid",
+            });
+        }
+
+        // Cari siswa berdasarkan ID
+        const student = await prisma.student.findUnique({
+            where: {
+                id: id,
+            },
+            select: {
+                id: true,
+                nis: true,
+                nama: true,
+                kelas: true,
+                jurusan: true,
+                qrToken: true,
+            },
+        });
+
+        // Jika siswa tidak ditemukan
+        if (!student) {
+            return res.status(404).json({
+                success: false,
+                message: "Siswa tidak ditemukan",
+            });
+        }
+
+        // Data yang akan dimasukkan ke QR
+        const qrData = JSON.stringify({
+            type: "ATTENDANCE",
+            studentId: student.id,
+            token: student.qrToken,
+        });
+
+        // Generate QR menjadi Data URL
+        const qrCode = await QRcode.toDataURL(qrData);
+
+        // Response
+        res.status(200).json({
+            success: true,
+            message: "QR Code berhasil dibuat",
+            data: {
+                student: {
+                    id: student.id,
+                    nis: student.nis,
+                    nama: student.nama,
+                    kelas: student.kelas,
+                    jurusan: student.jurusan,
+                },
+                qrToken: student.qrToken,
+                qrCode: qrCode,
+            },
+        });
+
+    } catch (error) {
+        console.error("Get student QR error:", error);
+
+        res.status(500).json({
+            success: false,
+            message: "Gagal membuat QR Code",
+        });
+    }
+};
+
 
 module.exports = {
     getStudents,
@@ -292,4 +366,5 @@ module.exports = {
     createStudent,
     updateStudent,
     deleteStudent,
+    getStudentQR,
 };
