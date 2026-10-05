@@ -2,6 +2,11 @@ const { v4: uuidv4 } = require("uuid");
 const prisma = require("../config/prisma");
 const QRcode = require("qrcode");
 
+const {
+    formatDateWIB,
+    formatDateTimeWIB,
+} = require("../utils/dateUtils");
+
 // GET semua siswa
 const getStudents = async (req, res) => {
     try {
@@ -360,6 +365,172 @@ const getStudentQR = async (req, res) => {
 };
 
 
+
+// GET PROFILE SISWA
+
+const getStudentProfile = async (req, res) => {
+    try {
+        const userId = req.user.id;
+
+        const user = await prisma.user.findUnique({
+            where: {
+                id: userId,
+            },
+            select: {
+                id: true,
+                username: true,
+                role: true,
+                student: {
+                    select: {
+                        id: true,
+                        nis: true,
+                        nama: true,
+                        kelas: true,
+                        jurusan: true,
+                    },
+                },
+            },
+        });
+
+        if (!user || !user.student) {
+            return res.status(404).json({
+                success: false,
+                message: "Data siswa tidak ditemukan",
+            });
+        }
+
+        return res.status(200).json({
+            success: true,
+            data: {
+                user: {
+                    id: user.id,
+                    username: user.username,
+                    role: user.role,
+                },
+                student: user.student,
+            },
+        });
+    } catch (error) {
+        console.error("Get student profile error:", error);
+
+        return res.status(500).json({
+            success: false,
+            message: "Gagal mengambil profil siswa",
+        });
+    }
+};
+
+// GET ABSENSI SISWA
+
+const getStudentAttendance = async (req, res) => {
+    try {
+        const userId = req.user.id;
+
+        const user = await prisma.user.findUnique({
+            where: {
+                id: userId,
+            },
+            select: {
+                studentId: true,
+            },
+        });
+
+        if (!user || !user.studentId) {
+            return res.status(404).json({
+                success: false,
+                message: "Data siswa tidak ditemukan",
+            });
+        }
+
+        const student = await prisma.student.findUnique({
+            where: {
+                id: user.studentId,
+            },
+            select: {
+                id: true,
+                nis: true,
+                nama: true,
+                kelas: true,
+                jurusan: true,
+            },
+        });
+
+        if (!student) {
+            return res.status(404).json({
+                success: false,
+                message: "Data siswa tidak ditemukan",
+            });
+        }
+
+        const attendances = await prisma.attendance.findMany({
+            where: {
+                studentId: student.id,
+            },
+            orderBy: {
+                tanggal: "desc",
+            },
+        });
+
+        const now = new Date();
+
+        const tanggalHariIni = new Date(
+            now.getFullYear(),
+            now.getMonth(),
+            now.getDate()
+        );
+
+        const attendanceHariIni =
+            await prisma.attendance.findUnique({
+                where: {
+                    studentId_tanggal: {
+                        studentId: student.id,
+                        tanggal: tanggalHariIni,
+                    },
+                },
+            });
+
+        return res.status(200).json({
+            success: true,
+            data: {
+                student,
+
+                hariIni: attendanceHariIni
+                    ? {
+                          id: attendanceHariIni.id,
+                          tanggal: formatDateWIB(
+                              attendanceHariIni.tanggal
+                          ),
+                          jamMasuk: formatDateTimeWIB(
+                              attendanceHariIni.jamMasuk
+                          ),
+                          jamPulang: formatDateTimeWIB(
+                              attendanceHariIni.jamPulang
+                          ),
+                          status: attendanceHariIni.status,
+                      }
+                    : null,
+
+                riwayat: attendances.map((item) => ({
+                    id: item.id,
+                    tanggal: formatDateWIB(item.tanggal),
+                    jamMasuk: formatDateTimeWIB(item.jamMasuk),
+                    jamPulang: formatDateTimeWIB(item.jamPulang),
+                    status: item.status,
+                })),
+            },
+        });
+    } catch (error) {
+        console.error(
+            "Get student attendance error:",
+            error
+        );
+
+        return res.status(500).json({
+            success: false,
+            message: "Gagal mengambil data absensi siswa",
+        });
+    }
+};
 module.exports = {
     getStudents,
     getStudentById,
@@ -367,4 +538,6 @@ module.exports = {
     updateStudent,
     deleteStudent,
     getStudentQR,
+    getStudentProfile,
+    getStudentAttendance,
 };
