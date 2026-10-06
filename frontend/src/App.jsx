@@ -29,7 +29,7 @@ function App() {
                 <Route
                     path="/admin"
                     element={
-                        <div className="p-10">
+                        <div className="p-8">
                             Dashboard Admin
                         </div>
                     }
@@ -38,7 +38,7 @@ function App() {
                 <Route
                     path="/student"
                     element={
-                        <div className="p-10">
+                        <div className="p-8">
                             Dashboard Siswa
                         </div>
                     }
