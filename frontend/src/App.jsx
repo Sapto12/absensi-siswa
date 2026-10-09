@@ -1,30 +1,80 @@
-import { Button } from "@heroui/react";
+import {
+    BrowserRouter,
+    Navigate,
+    Route,
+    Routes,
+} from "react-router-dom";
+import Login from "./pages/auth/login.jsx";
+import AdminDashboard from "./pages/admin/Dashboard.jsx";
+import StudentDashboard from "./pages/student/Dashboard.jsx";
+import Students from "./pages/admin/Students.jsx";
+
+function Placeholder({ title }) {
+    return (
+        <div className="flex min-h-screen items-center justify-center bg-slate-50">
+            <div className="text-center">
+                <h1 className="text-2xl font-bold text-slate-900">
+                    {title}
+                </h1>
+
+                <p className="mt-2 text-sm text-slate-500">
+                    Halaman sedang dalam pengembangan.
+                </p>
+
+                <a
+                    href="/student"
+                    className="mt-5 inline-block text-sm font-medium text-blue-600 hover:text-blue-700"
+                >
+                    Kembali ke Dashboard
+                </a>
+            </div>
+        </div>
+    );
+}
 
 function App() {
     return (
-        <main className="flex min-h-screen items-center justify-center bg-slate-50 px-6">
-            <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm">
-                <p className="text-sm font-medium text-blue-600">
-                    Sistem Absensi Digital
-                </p>
+        <BrowserRouter>
+            <Routes>
+                <Route
+                    path="/login"
+                    element={<Login />}
+                />
 
-                <h1 className="mt-2 text-3xl font-bold text-slate-900">
-                    Absensi Siswa
-                </h1>
+                <Route
+                    path="/admin"
+                    element={<AdminDashboard />}
+                />
 
-                <p className="mt-3 text-sm leading-6 text-slate-500">
-                    Sistem absensi siswa berbasis QR Code untuk pengelolaan
-                    kehadiran yang lebih cepat dan terintegrasi.
-                </p>
+                <Route
+                    path="/student"
+                    element={<StudentDashboard />}
+                />
 
-                <Button
-                    className="mt-6"
-                    color="primary"
-                >
-                    Mulai
-                </Button>
-            </div>
-        </main>
+                
+
+                <Route
+                    path="/student/attendance"
+                    element={<Placeholder title="Riwayat Absensi" />}
+                />
+
+                <Route
+                    path="/student/profile"
+                    element={<Placeholder title="Profil Siswa" />}
+                />
+
+                <Route
+                    path="/"
+                    element={<Navigate to="/login" replace />}
+                />
+
+                <Route
+                    path="*"
+                    element={<Navigate to="/login" replace />}
+                />
+                <Route path="/admin/students" element={<Students />} />
+            </Routes>
+        </BrowserRouter>
     );
 }
 

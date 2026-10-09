@@ -3,69 +3,63 @@ import { useNavigate } from "react-router-dom";
 import { ShieldCheck, LogIn } from "lucide-react";
 import { Button, Input } from "@heroui/react";
 
-
 import api from "@/services/api";
 
-function Login(){
+function Login() {
     const navigate = useNavigate();
 
-
-    const[form, setForm] = useState({
+    const [form, setForm] = useState({
         username: "",
         password: "",
-
     });
 
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
 
     const handleChange = (e) => {
-
         setForm({
             ...form,
-            [e.target.name] : e.target.value,
-
+            [e.target.name]: e.target.value,
         });
     };
-    const handleSubmit = async(e) =>{
+
+    const handleSubmit = async (e) => {
         e.preventDefault();
+
         setError("");
-        if (!form.username || !form.password){
-            setError("Username dan password wajib diisi");
+
+        if (!form.username || !form.password) {
+            setError("Username dan password wajib diisi.");
             return;
         }
 
-
-        try{
+        try {
             setLoading(true);
+
             const response = await api.post("/auth/login", form);
 
             const { token, user } = response.data.data;
+
             localStorage.setItem("token", token);
             localStorage.setItem("user", JSON.stringify(user));
-            if (user.role == "ADMIN"){
-                navigate("/admin", {replace: true});
-            }else{
-                navigate("/student", {replace:true});
 
-
+            if (user.role === "ADMIN") {
+                navigate("/admin", { replace: true });
+            } else {
+                navigate("/student", { replace: true });
             }
-
-            
-        }catch(error){
+        } catch (error) {
             setError(
                 error.response?.data?.message ||
-                "username .atau password salah"
+                "Username atau password salah."
             );
-        }finally{
-            setLoading(flase)
+        } finally {
+            setLoading(false);
         }
-        
     };
 
-
     return (
-        <main className="min-h-screen bg-slate-50">
+        <main className="min-h-screen bg-blue-600">
             <div className="grid min-h-screen lg:grid-cols-2">
 
                 {/* LEFT */}
@@ -79,7 +73,7 @@ function Login(){
 
                             <div>
                                 <p className="font-semibold">
-                                    Absensi Siswa
+                                   absensi Siswa
                                 </p>
 
                                 <p className="text-sm text-blue-100">
@@ -122,7 +116,7 @@ function Login(){
 
                                 <div>
                                     <p className="font-semibold text-slate-900">
-                                        Absensi Siswa
+                                        absen
                                     </p>
 
                                     <p className="text-sm text-slate-500">
@@ -200,4 +194,3 @@ function Login(){
 }
 
 export default Login;
-

@@ -14,4 +14,14 @@ export default defineConfig({
             "@": path.resolve(import.meta.dirname, "./src"),
         },
     },
+
+    server: {
+        watch: {
+            usePolling: true,
+            interval: 100,
+        },
+        hmr: {
+            overlay: true,
+        },
+    },
 });
