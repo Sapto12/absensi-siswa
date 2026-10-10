@@ -60,15 +60,6 @@ const scanAttendance = async (req, res) => {
                 message: "QR Code tidak valid",
             });
         }
-
-        // const now = new Date();
-
-        // const today = new Date(
-        //     now.getFullYear(),
-        //     now.getMonth(),
-        //     now.getDate()
-        // );
-
         const now = new Date();
         const today = getTodayWIB();
         const currentHour = getCurrentHourWIB();

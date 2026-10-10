@@ -474,11 +474,7 @@ const getStudentAttendance = async (req, res) => {
 
         const now = new Date();
 
-        const tanggalHariIni = new Date(
-            now.getFullYear(),
-            now.getMonth(),
-            now.getDate()
-        );
+        const tanggalHariIni = getTodayWIB();
 
         const attendanceHariIni =
             await prisma.attendance.findUnique({
@@ -556,7 +552,7 @@ const getStudentTodayAttendance = async (req, res) => {
         }
 
         // Ambil tanggal hari ini
-        const now = new Date();
+       
 
         const today = getTodayWIB();
 

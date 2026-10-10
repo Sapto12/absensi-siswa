@@ -69,7 +69,7 @@ function App() {
                 />
 
                 <Route
-                    path="*"
+                    path="*"    
                     element={<Navigate to="/login" replace />}
                 />
                 <Route path="/admin/students" element={<Students />} />
