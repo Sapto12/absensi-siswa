@@ -1,9 +1,11 @@
+
 const express = require("express");
 
 const {
     scanAttendance,
     checkoutAttendance,
     getTodayAttendance,
+    getDashboardStats,
 } = require("../controllers/attendanceController");
 
 const authMiddleware = require("../middleware/authMiddleware");
@@ -11,7 +13,6 @@ const roleMiddleware = require("../middleware/roleMiddleware");
 
 const router = express.Router();
 
-// Absensi siswa
 router.post(
     "/scan",
     authMiddleware,
@@ -26,12 +27,18 @@ router.post(
     checkoutAttendance
 );
 
-// Data absensi untuk admin
 router.get(
     "/today",
     authMiddleware,
     roleMiddleware("ADMIN"),
     getTodayAttendance
+);
+
+router.get(
+    "/dashboard",
+    authMiddleware,
+    roleMiddleware("ADMIN"),
+    getDashboardStats
 );
 
 module.exports = router;

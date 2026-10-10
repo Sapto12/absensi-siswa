@@ -1,13 +1,19 @@
+
 import {
-    BrowserRouter,
-    Navigate,
-    Route,
-    Routes,
+  BrowserRouter,
+  Navigate,
+  Route,
+  Routes,
 } from "react-router-dom";
+
 import Login from "./pages/auth/login.jsx";
 import AdminDashboard from "./pages/admin/Dashboard.jsx";
-import StudentDashboard from "./pages/student/Dashboard.jsx";
 import Students from "./pages/admin/Students.jsx";
+import AdminAttendance from "./pages/admin/Attendance.jsx";
+
+import StudentDashboard from "./pages/student/Dashboard.jsx";
+import StudentAttendance from "./pages/student/Attendance.jsx";
+import StudentProfile from "./pages/student/Profile.jsx";
 
 function Placeholder({ title }) {
     return (
@@ -31,51 +37,73 @@ function Placeholder({ title }) {
         </div>
     );
 }
-
 function App() {
-    return (
-        <BrowserRouter>
-            <Routes>
-                <Route
-                    path="/login"
-                    element={<Login />}
-                />
+  return (
+    <BrowserRouter>
+      <Routes>
+        <Route path="/login" element={<Login />} />
 
-                <Route
-                    path="/admin"
-                    element={<AdminDashboard />}
-                />
+        {/* Admin */}
+        <Route path="/admin" element={<AdminDashboard />} />
+        <Route path="/admin/students" element={<Students />} />
+        <Route
+          path="/admin/attendance"
+          element={<AdminAttendance />}
+        />
 
-                <Route
-                    path="/student"
-                    element={<StudentDashboard />}
-                />
+        {/* Siswa */}
+        <Route path="/student" element={<StudentDashboard />} />
+        <Route
+          path="/student/attendance"
+          element={<StudentAttendance />}
+        />
+        <Route
+          path="/student/profile"
+          element={<StudentProfile />}
+        />
 
-                
+        <Route
+          path="/"
+          element={<Navigate to="/login" replace />}
+        />
 
-                <Route
-                    path="/student/attendance"
-                    element={<Placeholder title="Riwayat Absensi" />}
-                />
-
-                <Route
-                    path="/student/profile"
-                    element={<Placeholder title="Profil Siswa" />}
-                />
-
-                <Route
-                    path="/"
-                    element={<Navigate to="/login" replace />}
-                />
-
-                <Route
-                    path="*"    
-                    element={<Navigate to="/login" replace />}
-                />
-                <Route path="/admin/students" element={<Students />} />
-            </Routes>
-        </BrowserRouter>
-    );
+        <Route
+          path="*"
+          element={<Navigate to="/login" replace />}
+        />
+      </Routes>
+    </BrowserRouter>
+  );
 }
 
 export default App;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

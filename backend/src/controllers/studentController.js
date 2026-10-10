@@ -1,6 +1,8 @@
 const { v4: uuidv4 } = require("uuid");
 const prisma = require("../config/prisma");
 const QRcode = require("qrcode");
+const crypto = require("crypto");
+const bcrypt = require("bcryptjs");
 
 const {
     formatDateWIB,
@@ -89,68 +91,116 @@ const getStudentById = async (req, res) => {
 };
 
 // POST tambah siswa
+// POST tambah siswa sekaligus membuat akun login
+// POST tambah siswa sekaligus membuat akun login
 const createStudent = async (req, res) => {
     try {
-        const {
-            nis,
-            nama,
-            kelas,
-            jurusan,
-        } = req.body;
+        const nis = String(req.body.nis ?? "").trim();
+        const nama = String(req.body.nama ?? "").trim();
+        const kelas = String(req.body.kelas ?? "").trim();
+        const jurusan = String(req.body.jurusan ?? "").trim();
 
-        // Validasi
         if (!nis || !nama || !kelas || !jurusan) {
             return res.status(400).json({
                 success: false,
-                message: "NIS, nama, kelas, dan jurusan wajib diisi",
+                message: "NIS, nama, kelas, dan jurusan wajib diisi.",
             });
         }
 
-        // Cek NIS
-        const existingStudent = await prisma.student.findUnique({
-            where: {
-                nis,
-            },
-        });
+        // Password awal sama dengan NIS, tetapi tetap di-hash
+        const hashedPassword = await bcrypt.hash(nis, 12);
 
-        if (existingStudent) {
-            return res.status(409).json({
-                success: false,
-                message: "NIS sudah terdaftar",
+        const result = await prisma.$transaction(async (tx) => {
+            const existingStudent = await tx.student.findUnique({
+                where: { nis },
             });
-        }
 
-        // Buat siswa
-        const student = await prisma.student.create({
-            data: {
-                nis,
-                nama,
-                kelas,
-                jurusan,
-                qrToken: uuidv4(),
-            },
-            select: {
-                id: true,
-                nis: true,
-                nama: true,
-                kelas: true,
-                jurusan: true,
-                qrToken: true,
-                createdAt: true,
-            },
+            if (existingStudent) {
+                const error = new Error("NIS sudah terdaftar.");
+                error.statusCode = 409;
+                throw error;
+            }
+
+            const existingUser = await tx.user.findUnique({
+                where: { username: nis },
+            });
+
+            if (existingUser) {
+                const error = new Error(
+                    "NIS sudah digunakan sebagai username akun lain."
+                );
+                error.statusCode = 409;
+                throw error;
+            }
+
+            const student = await tx.student.create({
+                data: {
+                    nis,
+                    nama,
+                    kelas,
+                    jurusan,
+                    qrToken: uuidv4(),
+                },
+                select: {
+                    id: true,
+                    nis: true,
+                    nama: true,
+                    kelas: true,
+                    jurusan: true,
+                    createdAt: true,
+                },
+            });
+
+            const user = await tx.user.create({
+                data: {
+                    username: nis,
+                    password: hashedPassword,
+                    role: "STUDENT",
+                    studentId: student.id,
+                },
+                select: {
+                    id: true,
+                    username: true,
+                    role: true,
+                    studentId: true,
+                },
+            });
+
+            return { student, user };
         });
 
-        res.status(201).json({
+        return res.status(201).json({
             success: true,
-            message: "Siswa berhasil ditambahkan",
-            data: student,
+            message: "Data siswa dan akun login berhasil dibuat.",
+            data: {
+                student: result.student,
+                account: {
+                    username: result.user.username,
+                    initialPassword: nis,
+                    role: result.user.role,
+                },
+            },
         });
     } catch (error) {
         console.error("Create student error:", error);
 
-        res.status(500).json({
+        if (error.statusCode) {
+            return res.status(error.statusCode).json({
+                success: false,
+                message: error.message,
+            });
+        }
+
+        if (error.code === "P2002") {
+            return res.status(409).json({
+                success: false,
+                message: "NIS atau username sudah digunakan.",
+            });
+        }
+
+        return res.status(500).json({
             success: false,
-            message: "Gagal menambahkan siswa",
+            message: "Gagal membuat data siswa dan akun login.",
         });
     }
 };
@@ -249,49 +299,81 @@ const updateStudent = async (req, res) => {
 
 
 // DELETE siswa
+
 const deleteStudent = async (req, res) => {
-    try {
-        const id = Number(req.params.id);
+  try {
+    const id = Number(req.params.id);
 
-        if (isNaN(id)) {
-            return res.status(400).json({
-                success: false,
-                message: "ID siswa tidak valid",
-            });
-        }
-
-        const student = await prisma.student.findUnique({
-            where: {
-                id,
-            },
-        });
-
-        if (!student) {
-            return res.status(404).json({
-                success: false,
-                message: "Siswa tidak ditemukan",
-            });
-        }
-
-        await prisma.student.delete({
-            where: {
-                id,
-            },
-        });
-
-        res.json({
-            success: true,
-            message: "Siswa berhasil dihapus",
-        });
-    } catch (error) {
-        console.error("Delete student error:", error);
-
-        res.status(500).json({
-            success: false,
-            message: "Gagal menghapus siswa",
-        });
+    if (!Number.isInteger(id) || id <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: "ID siswa tidak valid.",
+      });
     }
+
+    const student = await prisma.$transaction(async (tx) => {
+      const existingStudent = await tx.student.findUnique({
+        where: { id },
+      });
+
+      if (!existingStudent) {
+        return null;
+      }
+
+      // Pertahankan identitas siswa pada setiap riwayat absensi.
+      await tx.attendance.updateMany({
+        where: { studentId: existingStudent.id },
+        data: {
+          studentNis: existingStudent.nis,
+          studentNama: existingStudent.nama,
+          studentKelas: existingStudent.kelas,
+          studentId: null,
+        },
+      });
+
+      // Hapus akun yang terhubung ke siswa.
+      // Kondisi username menangani akun lama yang relasinya kosong.
+      await tx.user.deleteMany({
+        where: {
+          OR: [
+            { studentId: existingStudent.id },
+            {
+              username: existingStudent.nis,
+              role: "STUDENT",
+            },
+          ],
+        },
+      });
+
+      await tx.student.delete({
+        where: { id: existingStudent.id },
+      });
+
+      return existingStudent;
+    });
+
+    if (!student) {
+      return res.status(404).json({
+        success: false,
+        message: "Data siswa tidak ditemukan.",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message:
+        "Data siswa dan akun login dihapus. Riwayat absensi tetap tersimpan.",
+    });
+  } catch (error) {
+    console.error("Gagal menghapus siswa:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Terjadi kesalahan saat menghapus siswa.",
+    });
+  }
 };
+
 const getStudentQR = async (req, res) => {
     try {
         // Ambil ID dari URL

@@ -4,8 +4,8 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-
 }
+
 model User {
   id        Int      @id @default(autoincrement())
   username  String   @unique
@@ -18,34 +18,37 @@ model User {
 }
 
 model Student {
-  id       Int      @id @default(autoincrement())
-  nis     String   @unique
-  nama     String
-  kelas    String
-  jurusan  String
-  qrToken  String   @unique
+  id        Int      @id @default(autoincrement())
+  nis       String   @unique
+  nama      String
+  kelas     String
+  jurusan   String
+  qrToken   String   @unique
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  user      User?
+  user        User?
   attendances Attendance[]
 }
 
 model Attendance {
-  id        Int      @id @default(autoincrement())
-  studentId Int
-  tanggal   DateTime @db.Date
-  jamMasuk  DateTime? 
-  jamPulang DateTime?
-  status    AttendanceStatus @default(HADIR)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id           Int              @id @default(autoincrement())
+  studentId    Int?
+  studentNis   String?
+  studentNama  String?
+  studentKelas String?
+  tanggal      DateTime         @db.Date
+  jamMasuk     DateTime?
+  jamPulang    DateTime?
+  status       AttendanceStatus @default(HADIR)
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
 
-  student   Student  @relation(fields: [studentId], references: [id])
+  student Student? @relation(fields: [studentId], references: [id], onDelete: SetNull)
 
   @@unique([studentId, tanggal])
-
 }
+
 enum Role {
   ADMIN
   STUDENT

@@ -234,91 +234,202 @@ const checkoutAttendance = async (req, res) => {
     }
 };
 
+
 const getTodayAttendance = async (req, res) => {
+  try {
+    // Gunakan tanggal yang sama dengan proses scan siswa (WIB).
+    const tanggal = getTodayWIB();
+
+    const [totalStudents, attendances] = await Promise.all([
+      prisma.student.count(),
+
+      prisma.attendance.findMany({
+        where: { tanggal },
+        orderBy: [
+          { jamMasuk: "desc" },
+          { createdAt: "desc" },
+        ],
+        include: {
+          student: {
+            select: {
+              id: true,
+              nis: true,
+              nama: true,
+              kelas: true,
+              jurusan: true,
+            },
+          },
+        },
+      }),
+    ]);
+
+    const totalAttendance = attendances.length;
+    const totalHadir = attendances.filter(
+      (item) => item.status === "HADIR"
+    ).length;
+    const totalTerlambat = attendances.filter(
+      (item) => item.status === "TERLAMBAT"
+    ).length;
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        tanggal: formatDateWIB(tanggal),
+        statistik: {
+          totalSiswa: totalStudents,
+          sudahAbsen: totalAttendance,
+          hadir: totalHadir,
+          terlambat: totalTerlambat,
+          belumAbsen: Math.max(0, totalStudents - totalAttendance),
+        },
+        absensi: attendances.map((item) => ({
+          id: item.id,
+          studentId: item.studentId,
+          tanggal: formatDateWIB(item.tanggal),
+          jamMasuk: formatDateTimeWIB(item.jamMasuk),
+          jamPulang: formatDateTimeWIB(item.jamPulang),
+          status: item.status,
+          createdAt: formatDateTimeWIB(item.createdAt),
+          updatedAt: formatDateTimeWIB(item.updatedAt),
+
+          // Riwayat tetap dapat ditampilkan setelah data siswa dihapus.
+          student: item.student
+            ? item.student
+            : {
+                id: null,
+                nis: item.studentNis ?? "-",
+                nama: item.studentNama ?? "Siswa dihapus",
+                kelas: item.studentKelas ?? "-",
+                jurusan: "-",
+              },
+        })),
+      },
+    });
+  } catch (error) {
+    console.error("Get today attendance error:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Gagal mengambil data absensi hari ini",
+    });
+  }
+};
+
+
+
+const getDashboardStats = async (req, res) => {
     try {
-        const now = new Date();
+        const getDateKey = (date) => {
+            const parts = new Intl.DateTimeFormat("en-CA", {
+                timeZone: "Asia/Jakarta",
+                year: "numeric",
+                month: "2-digit",
+                day: "2-digit",
+            }).formatToParts(date);
 
-        const tanggal = new Date(
-            now.getFullYear(),
-            now.getMonth(),
-            now.getDate()
-        );
+            const values = Object.fromEntries(
+                parts.map((part) => [part.type, part.value])
+            );
 
-        // Ambil seluruh siswa
-        const totalStudents = await prisma.student.count();
+            return `${values.year}-${values.month}-${values.day}`;
+        };
 
-        // Ambil seluruh absensi hari ini
-        const attendances = await prisma.attendance.findMany({
-            where: {
-                tanggal,
-            },
-            orderBy: {
-                jamMasuk: "asc",
-            },
-            include: {
-                student: {
-                    select: {
-                        id: true,
-                        nis: true,
-                        nama: true,
-                        kelas: true,
-                        jurusan: true,
-                    },
-                },
-            },
+        const todayKey = getDateKey(new Date());
+
+        // Ambil tujuh tanggal terakhir, termasuk hari ini.
+        const dates = Array.from({ length: 7 }, (_, index) => {
+            const date = new Date(`${todayKey}T00:00:00.000Z`);
+            date.setUTCDate(date.getUTCDate() - (6 - index));
+            return date.toISOString().slice(0, 10);
         });
 
-        const totalAttendance = attendances.length;
+        const startDate = new Date(`${dates[0]}T00:00:00.000Z`);
+        const endDate = new Date(`${todayKey}T00:00:00.000Z`);
 
-        const totalHadir = attendances.filter(
-            (item) => item.status === "HADIR"
-        ).length;
+        const [students, attendances] = await Promise.all([
+            prisma.student.findMany({
+                select: {
+                    id: true,
+                    kelas: true,
+                    jurusan: true,
+                },
+            }),
+            prisma.attendance.findMany({
+                where: {
+                    tanggal: {
+                        gte: startDate,
+                        lte: endDate,
+                    },
+                },
+                select: {
+                    studentId: true,
+                    tanggal: true,
+                    status: true,
+                },
+            }),
+        ]);
 
-        const totalTerlambat = attendances.filter(
-            (item) => item.status === "TERLAMBAT"
-        ).length;
+        const todayAttendance = attendances.filter(
+            (item) => getDateKey(item.tanggal) === todayKey
+        );
 
-        const belumAbsen = totalStudents - totalAttendance;
+        const siswaPerKelas = Object.values(
+            students.reduce((result, student) => {
+                const kelas = student.kelas || "Belum ada kelas";
 
-return res.status(200).json({
-    success: true,
-    data: {
-        tanggal: formatDateWIB(tanggal),
+                if (!result[kelas]) {
+                    result[kelas] = { kelas, jumlah: 0 };
+                }
 
-        statistik: {
-            totalSiswa: totalStudents,
-            sudahAbsen: totalAttendance,
-            hadir: totalHadir,
-            terlambat: totalTerlambat,
-            belumAbsen,
-        },
+                result[kelas].jumlah += 1;
+                return result;
+            }, {})
+        ).sort((a, b) => a.kelas.localeCompare(b.kelas));
 
-        absensi: attendances.map((item) => ({
-            id: item.id,
-            studentId: item.studentId,
-            tanggal: formatDateWIB(item.tanggal),
-            jamMasuk: formatDateTimeWIB(item.jamMasuk),
-            jamPulang: formatDateTimeWIB(item.jamPulang),
-            status: item.status,
-            createdAt: formatDateTimeWIB(item.createdAt),
-            updatedAt: formatDateTimeWIB(item.updatedAt),
+        const absensiPerHari = dates.map((tanggal) => {
+            const dataTanggal = attendances.filter(
+                (item) => getDateKey(item.tanggal) === tanggal
+            );
 
-            student: item.student,
-        })),
-    },
-});
+            return {
+                tanggal,
+                jumlah: dataTanggal.length,
+            };
+        });
+
+        return res.status(200).json({
+            success: true,
+            data: {
+                totalSiswa: students.length,
+                absensiHariIni: todayAttendance.length,
+                hadir: todayAttendance.filter(
+                    (item) => item.status === "HADIR"
+                ).length,
+                terlambat: todayAttendance.filter(
+                    (item) => item.status === "TERLAMBAT"
+                ).length,
+                belumAbsen: Math.max(
+                    0,
+                    students.length - todayAttendance.length
+                ),
+                absensiPerHari,
+                siswaPerKelas,
+            },
+        });
     } catch (error) {
-        console.error("Get today attendance error:", error);
+        console.error("Get dashboard stats error:", error);
 
         return res.status(500).json({
             success: false,
-            message: "Gagal mengambil data absensi hari ini",
+            message: "Gagal mengambil statistik dashboard.",
         });
     }
 };
+
 
 module.exports = {
     scanAttendance,
     checkoutAttendance,
     getTodayAttendance,
+    getDashboardStats,
 };
