@@ -7,6 +7,8 @@ const authRoutes = require("./routes/authRoutes");
 const studentRoutes = require("./routes/studentRoutes");
 const attendanceRoutes = require("./routes/attendanceRoutes");
 const studentDashboardRoutes = require("./routes/studentDashboardRoutes");
+const categoryRoutes = require("./routes/categoryRoutes");
+
 
 const app = express();
 
@@ -18,11 +20,13 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 
+
 //routes
 app.use("/api/auth", authRoutes);
 app.use("/api/students", studentRoutes);
 app.use("/api/attendance", attendanceRoutes);
 app.use("/api/student", studentDashboardRoutes);
+app.use("/api/categories", categoryRoutes);
 
 // Root endpoint
 app.get("/", (req, res) => {
