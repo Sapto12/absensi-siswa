@@ -2,7 +2,28 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ShieldCheck, LogIn } from "lucide-react";
 import { Button, Input } from "@heroui/react";
+import { apiRequest } from "../../lib/api";
 
+export async function login(username, password) {
+  const result = await apiRequest("/auth/login", {
+    method: "POST",
+    body: JSON.stringify({ username, password }),
+  });
+
+  const { token, user } = result.data;
+
+  localStorage.setItem("token", token);
+  localStorage.setItem("user", JSON.stringify(user));
+
+  if (user.mustChangePassword) {
+  window.location.assign("/student/profile");
+  return;
+}
+
+  window.location.assign(
+    user.role === "ADMIN" ? "/admin" : "/student"
+  );
+}
 import api from "@/services/api";
 
 function Login() {

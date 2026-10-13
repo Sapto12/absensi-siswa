@@ -196,20 +196,23 @@ const createStudent = async (req, res) => {
                 },
             });
 
-            const user = await tx.user.create({
-                data: {
-                    username: nis,
-                    password: hashedPassword,
-                    role: "STUDENT",
-                    studentId: student.id,
-                },
-                select: {
-                    id: true,
-                    username: true,
-                    role: true,
-                    studentId: true,
-                },
-            });
+            
+const user = await tx.user.create({
+    data: {
+        username: nis,
+        password: hashedPassword,
+        role: "STUDENT",
+        studentId: student.id,
+        mustChangePassword: true,
+    },
+    select: {
+        id: true,
+        username: true,
+        role: true,
+        studentId: true,
+        mustChangePassword: true,
+    },
+});
 
             return { student, user };
         });

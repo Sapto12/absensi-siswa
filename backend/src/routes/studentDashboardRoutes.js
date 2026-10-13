@@ -8,10 +8,12 @@ const {
 
 const authMiddleware = require("../middleware/authMiddleware");
 const roleMiddleware = require("../middleware/roleMiddleware");
+const mustChangePasswordMiddleware = require("../middleware/mustChangePasswordMiddleware");
 
 const router = express.Router();
 
 router.use(authMiddleware);
+router.use(mustChangePasswordMiddleware);
 router.use(roleMiddleware("STUDENT"));
 
 router.get("/profile", getStudentProfile);
