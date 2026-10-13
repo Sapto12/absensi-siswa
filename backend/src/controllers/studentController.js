@@ -10,6 +10,51 @@ const {
     getTodayWIB,
 } = require("../utils/dateUtils");
 
+const getAuthenticatedStudent = async (userId) => {
+    if (!Number.isInteger(userId) || userId <= 0) {
+        return { error: "Akun tidak valid", status: 401 };
+    }
+
+    const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: {
+            id: true,
+            username: true,
+            role: true,
+            studentId: true,
+        },
+    });
+
+    if (!user) {
+        return { error: "Akun tidak ditemukan", status: 401 };
+    }
+
+    if (user.role !== "STUDENT") {
+        return { error: "Akses hanya untuk siswa", status: 403 };
+    }
+
+    if (!user.studentId) {
+        return { error: "Akun belum terhubung dengan data siswa", status: 404 };
+    }
+
+    const student = await prisma.student.findUnique({
+        where: { id: user.studentId },
+        select: {
+            id: true,
+            nis: true,
+            nama: true,
+            kelas: true,
+            jurusan: true,
+        },
+    });
+
+    if (!student) {
+        return { error: "Data siswa tidak ditemukan", status: 404 };
+    }
+
+    return { user, student };
+};
+
 // GET semua siswa
 const getStudents = async (req, res) => {
     try {
@@ -451,36 +496,19 @@ const getStudentQR = async (req, res) => {
 
 // GET PROFILE SISWA
 
+
 const getStudentProfile = async (req, res) => {
     try {
-        const userId = req.user.userId;
+        const result = await getAuthenticatedStudent(req.user.userId);
 
-        const user = await prisma.user.findUnique({
-            where: {
-                id: userId,
-            },
-            select: {
-                id: true,
-                username: true,
-                role: true,
-                student: {
-                    select: {
-                        id: true,
-                        nis: true,
-                        nama: true,
-                        kelas: true,
-                        jurusan: true,
-                    },
-                },
-            },
-        });
-
-        if (!user || !user.student) {
-            return res.status(404).json({
+        if (result.error) {
+            return res.status(result.status).json({
                 success: false,
-                message: "Data siswa tidak ditemukan",
+                message: result.error,
             });
         }
+
+        const { user, student } = result;
 
         return res.status(200).json({
             success: true,
@@ -490,7 +518,7 @@ const getStudentProfile = async (req, res) => {
                     username: user.username,
                     role: user.role,
                 },
-                student: user.student,
+                student,
             },
         });
     } catch (error) {
@@ -503,106 +531,77 @@ const getStudentProfile = async (req, res) => {
     }
 };
 
+
 // GET ABSENSI SISWA
+
 
 const getStudentAttendance = async (req, res) => {
     try {
-        const userId = req.user.userId;
+        const result = await getAuthenticatedStudent(req.user.userId);
 
-        const user = await prisma.user.findUnique({
-            where: {
-                id: userId,
-            },
-            select: {
-                studentId: true,
-            },
-        });
-
-        if (!user || !user.studentId) {
-            return res.status(404).json({
+        if (result.error) {
+            return res.status(result.status).json({
                 success: false,
-                message: "Data siswa tidak ditemukan",
+                message: result.error,
             });
         }
 
-        const student = await prisma.student.findUnique({
-            where: {
-                id: user.studentId,
-            },
-            select: {
-                id: true,
-                nis: true,
-                nama: true,
-                kelas: true,
-                jurusan: true,
-            },
-        });
+        const { student } = result;
+        const today = getTodayWIB();
 
-        if (!student) {
-            return res.status(404).json({
-                success: false,
-                message: "Data siswa tidak ditemukan",
-            });
-        }
+        const [attendances, attendanceHariIni] = await Promise.all([
+            prisma.attendance.findMany({
+                where: { studentId: student.id },
+                orderBy: [
+                    { tanggal: "desc" },
+                    { id: "desc" },
+                ],
+                select: {
+                    id: true,
+                    tanggal: true,
+                    jamMasuk: true,
+                    jamPulang: true,
+                    status: true,
+                },
+            }),
 
-        const attendances = await prisma.attendance.findMany({
-            where: {
-                studentId: student.id,
-            },
-            orderBy: {
-                tanggal: "desc",
-            },
-        });
-
-        const now = new Date();
-
-        const tanggalHariIni = getTodayWIB();
-
-        const attendanceHariIni =
-            await prisma.attendance.findUnique({
+            prisma.attendance.findUnique({
                 where: {
                     studentId_tanggal: {
                         studentId: student.id,
-                        tanggal: tanggalHariIni,
+                        tanggal: today,
                     },
                 },
-            });
+                select: {
+                    id: true,
+                    tanggal: true,
+                    jamMasuk: true,
+                    jamPulang: true,
+                    status: true,
+                },
+            }),
+        ]);
+
+        const formatAttendance = (item) => ({
+            id: item.id,
+            tanggal: formatDateWIB(item.tanggal),
+            jamMasuk: formatDateTimeWIB(item.jamMasuk),
+            jamPulang: formatDateTimeWIB(item.jamPulang),
+            status: item.status,
+        });
 
         return res.status(200).json({
             success: true,
             data: {
                 student,
-
                 hariIni: attendanceHariIni
-                    ? {
-                          id: attendanceHariIni.id,
-                          tanggal: formatDateWIB(
-                              attendanceHariIni.tanggal
-                          ),
-                          jamMasuk: formatDateTimeWIB(
-                              attendanceHariIni.jamMasuk
-                          ),
-                          jamPulang: formatDateTimeWIB(
-                              attendanceHariIni.jamPulang
-                          ),
-                          status: attendanceHariIni.status,
-                      }
+                    ? formatAttendance(attendanceHariIni)
                     : null,
-
-                riwayat: attendances.map((item) => ({
-                    id: item.id,
-                    tanggal: formatDateWIB(item.tanggal),
-                    jamMasuk: formatDateTimeWIB(item.jamMasuk),
-                    jamPulang: formatDateTimeWIB(item.jamPulang),
-                    status: item.status,
-                })),
+                riwayat: attendances.map(formatAttendance),
             },
         });
     } catch (error) {
-        console.error(
-            "Get student attendance error:",
-            error
-        );
+        console.error("Get student attendance error:", error);
 
         return res.status(500).json({
             success: false,
@@ -611,38 +610,26 @@ const getStudentAttendance = async (req, res) => {
     }
 };
 
+
 // GET ABSENSI HARI INI SISWA
+
 const getStudentTodayAttendance = async (req, res) => {
     try {
-        const userId = req.user.userId;
+        const result = await getAuthenticatedStudent(req.user.userId);
 
-        // Cari akun user dan studentId
-        const user = await prisma.user.findUnique({
-            where: {
-                id: userId,
-            },
-            select: {
-                studentId: true,
-            },
-        });
-
-        if (!user || !user.studentId) {
-            return res.status(404).json({
+        if (result.error) {
+            return res.status(result.status).json({
                 success: false,
-                message: "Data siswa tidak ditemukan",
+                message: result.error,
             });
         }
 
-        // Ambil tanggal hari ini
-       
-
         const today = getTodayWIB();
 
-        // Cari absensi hari ini
         const attendance = await prisma.attendance.findUnique({
             where: {
                 studentId_tanggal: {
-                    studentId: user.studentId,
+                    studentId: result.student.id,
                     tanggal: today,
                 },
             },
@@ -655,31 +642,32 @@ const getStudentTodayAttendance = async (req, res) => {
             },
         });
 
-        res.status(200).json({
+        return res.status(200).json({
             success: true,
             data: {
                 tanggal: formatDateWIB(today),
-                sudahAbsen: !!attendance,
+                sudahAbsen: Boolean(attendance),
                 absensi: attendance
                     ? {
-                          id: attendance.id,
-                          tanggal: formatDateWIB(attendance.tanggal),
-                          jamMasuk: formatDateTimeWIB(attendance.jamMasuk),
-                          jamPulang: formatDateTimeWIB(attendance.jamPulang),
-                          status: attendance.status,
-                      }
+                        id: attendance.id,
+                        tanggal: formatDateWIB(attendance.tanggal),
+                        jamMasuk: formatDateTimeWIB(attendance.jamMasuk),
+                        jamPulang: formatDateTimeWIB(attendance.jamPulang),
+                        status: attendance.status,
+                    }
                     : null,
             },
         });
     } catch (error) {
         console.error("Get student today attendance error:", error);
 
-        res.status(500).json({
+        return res.status(500).json({
             success: false,
             message: "Gagal mengambil absensi hari ini",
         });
     }
 };
+
 module.exports = {
     getStudents,
     getStudentById,

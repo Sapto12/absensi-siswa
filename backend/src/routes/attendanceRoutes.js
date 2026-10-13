@@ -13,6 +13,7 @@ const roleMiddleware = require("../middleware/roleMiddleware");
 
 const router = express.Router();
 
+// Siswa
 router.post(
     "/scan",
     authMiddleware,
@@ -27,6 +28,7 @@ router.post(
     checkoutAttendance
 );
 
+// Admin
 router.get(
     "/today",
     authMiddleware,

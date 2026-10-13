@@ -76,11 +76,15 @@ const register = async (req, res) => {
     },
 });
 
-        res.status(201).json({
-            success: true,
-            message: "Akun siswa berhasil dibuat",
-            data: user,
-        });
+       res.status(201).json({
+    success: true,
+    message: "Akun siswa berhasil dibuat",
+    data: {
+        id: user.id,
+        username: user.username,
+        role: user.role,
+    },
+});
     } catch (error) {
         console.error("Register student error:", error);
 
