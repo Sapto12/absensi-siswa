@@ -1,30 +1,35 @@
 const express = require("express");
-
-const {
-    getStudents,
-    getStudentById,
-    createStudent,
-    updateStudent,
-    deleteStudent,
-    getStudentQR,
-} = require("../controllers/studentController");
+const router = express.Router();
 
 const authMiddleware = require("../middleware/authMiddleware");
 const roleMiddleware = require("../middleware/roleMiddleware");
 const mustChangePasswordMiddleware = require("../middleware/mustChangePasswordMiddleware");
+const {
+  getStudents,
+  createStudent,
+  getStudentQR,
+} = require("../controllers/studentController");
 
-
-const router = express.Router();
-router.use(mustChangePasswordMiddleware);
-router.use(authMiddleware);
-router.use(roleMiddleware("ADMIN"));
-
-router.get("/", getStudents);
-router.post("/", createStudent);
-router.get("/:id", getStudentById);
-router.put("/:id", updateStudent);
-router.delete("/:id", deleteStudent);
-router.get("/:id/qr", getStudentQR);
+router.get(
+  "/",
+  authMiddleware,
+  roleMiddleware("ADMIN"),
+  mustChangePasswordMiddleware,
+  getStudents
+);
+router.post(
+  "/",
+  authMiddleware,
+  roleMiddleware("ADMIN"),
+  mustChangePasswordMiddleware,
+  createStudent
+);
+router.get(
+  "/:id/qr",
+  authMiddleware,
+  roleMiddleware("ADMIN"),
+  mustChangePasswordMiddleware,
+  getStudentQR
+);
 
 module.exports = router;
-

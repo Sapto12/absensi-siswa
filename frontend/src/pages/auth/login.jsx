@@ -1,29 +1,8 @@
+
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ShieldCheck, LogIn } from "lucide-react";
 import { Button, Input } from "@heroui/react";
-import { apiRequest } from "../../lib/api";
-
-export async function login(username, password) {
-  const result = await apiRequest("/auth/login", {
-    method: "POST",
-    body: JSON.stringify({ username, password }),
-  });
-
-  const { token, user } = result.data;
-
-  localStorage.setItem("token", token);
-  localStorage.setItem("user", JSON.stringify(user));
-
-  if (user.mustChangePassword) {
-  window.location.assign("/student/profile");
-  return;
-}
-
-  window.location.assign(
-    user.role === "ADMIN" ? "/admin" : "/student"
-  );
-}
 import api from "@/services/api";
 
 function Login() {
@@ -38,18 +17,17 @@ function Login() {
     const [error, setError] = useState("");
 
     const handleChange = (e) => {
-        setForm({
-            ...form,
+        setForm((previous) => ({
+            ...previous,
             [e.target.name]: e.target.value,
-        });
+        }));
     };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-
         setError("");
 
-        if (!form.username || !form.password) {
+        if (!form.username.trim() || !form.password) {
             setError("Username dan password wajib diisi.");
             return;
         }
@@ -57,22 +35,42 @@ function Login() {
         try {
             setLoading(true);
 
-            const response = await api.post("/auth/login", form);
+            const response = await api.post("/auth/login", {
+                username: form.username.trim(),
+                password: form.password,
+            });
 
             const { token, user } = response.data.data;
 
+            // Simpan token dan informasi akun.
             localStorage.setItem("token", token);
             localStorage.setItem("user", JSON.stringify(user));
 
+            // Siswa wajib mengganti password awal melalui halaman profil.
+            if (
+                user.role === "STUDENT" &&
+                user.mustChangePassword === true
+            ) {
+                navigate("/student/profile", { replace: true });
+                return;
+            }
+
+            // Arahkan pengguna berdasarkan role.
             if (user.role === "ADMIN") {
                 navigate("/admin", { replace: true });
-            } else {
+            } else if (user.role === "STUDENT") {
                 navigate("/student", { replace: true });
+            } else {
+                localStorage.removeItem("token");
+                localStorage.removeItem("user");
+                setError("Role akun tidak dikenali.");
             }
         } catch (error) {
+            console.error("Login gagal:", error);
+
             setError(
                 error.response?.data?.message ||
-                "Username atau password salah."
+                    "Username atau password salah."
             );
         } finally {
             setLoading(false);
@@ -83,7 +81,7 @@ function Login() {
         <main className="min-h-screen bg-blue-600">
             <div className="grid min-h-screen lg:grid-cols-2">
 
-                {/* LEFT */}
+                {/* Panel kiri */}
                 <section className="hidden bg-blue-600 lg:flex">
                     <div className="flex w-full flex-col justify-between p-12 text-white">
 
@@ -94,9 +92,8 @@ function Login() {
 
                             <div>
                                 <p className="font-semibold">
-                                   absensi Siswa
+                                    Absensi Siswa
                                 </p>
-
                                 <p className="text-sm text-blue-100">
                                     Sistem Kehadiran Digital
                                 </p>
@@ -125,22 +122,22 @@ function Login() {
                     </div>
                 </section>
 
-                {/* RIGHT */}
+                {/* Panel login */}
                 <section className="flex items-center justify-center px-6 py-12">
                     <div className="w-full max-w-md">
 
+                        {/* Branding mobile */}
                         <div className="mb-8 lg:hidden">
                             <div className="flex items-center gap-3">
-                                <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-600 text-white">
+                                <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-white text-blue-600">
                                     <ShieldCheck size={23} />
                                 </div>
 
                                 <div>
-                                    <p className="font-semibold text-slate-900">
-                                        absen
+                                    <p className="font-semibold text-white">
+                                        Absensi Siswa
                                     </p>
-
-                                    <p className="text-sm text-slate-500">
+                                    <p className="text-sm text-blue-100">
                                         Sistem Kehadiran Digital
                                     </p>
                                 </div>
@@ -175,6 +172,7 @@ function Login() {
                                     onChange={handleChange}
                                     variant="bordered"
                                     isDisabled={loading}
+                                    isRequired
                                 />
 
                                 <Input
@@ -186,10 +184,14 @@ function Login() {
                                     onChange={handleChange}
                                     variant="bordered"
                                     isDisabled={loading}
+                                    isRequired
                                 />
 
                                 {error && (
-                                    <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
+                                    <div
+                                        role="alert"
+                                        className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600"
+                                    >
                                         {error}
                                     </div>
                                 )}
@@ -200,10 +202,9 @@ function Login() {
                                     size="lg"
                                     className="w-full font-medium"
                                     isLoading={loading}
+                                    isDisabled={loading}
                                 >
-                                    {loading
-                                        ? "Memproses..."
-                                        : "Masuk"}
+                                    {loading ? "Memproses..." : "Masuk"}
                                 </Button>
                             </form>
                         </div>
