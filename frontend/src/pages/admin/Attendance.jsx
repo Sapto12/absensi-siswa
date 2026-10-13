@@ -3,11 +3,13 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   CalendarCheck,
   Clock3,
+  Download,
   RefreshCw,
   Search,
   Users,
 } from "lucide-react";
 import { Button } from "@heroui/react";
+import * as XLSX from "xlsx";
 
 import AdminLayout from "../../layouts/AdminLayout.jsx";
 import api from "@/services/api";
@@ -120,6 +122,91 @@ function Attendance() {
     });
   }, [records, search, statusFilter]);
 
+  
+  const handleExportExcel = () => {
+    // Ekspor mengikuti pencarian dan filter status yang aktif.
+    if (filteredRecords.length === 0) {
+      alert("Tidak ada data absensi yang dapat diekspor.");
+      return;
+    }
+
+    const workbook = XLSX.utils.book_new();
+    const grouped = {};
+
+    filteredRecords.forEach((record) => {
+      const student = record.student ?? {};
+
+      const nama = student.nama ?? record.studentNama ?? "-";
+      const nis = student.nis ?? record.studentNis ?? "-";
+      const kelas = student.kelas ?? record.studentKelas ?? "Tanpa Kelas";
+      const jurusan = student.jurusan ?? record.studentJurusan ?? "Tanpa Jurusan";
+
+      // Setiap kombinasi jurusan dan kelas menjadi satu worksheet.
+      const groupKey = `${jurusan}|||${kelas}`;
+
+      if (!grouped[groupKey]) {
+        grouped[groupKey] = [];
+      }
+
+      grouped[groupKey].push({
+        "NIS": nis,
+        "Nama Siswa": nama,
+        "Kelas": kelas,
+        "Jurusan": jurusan,
+        "Tanggal": formatDate(record.tanggal ?? data?.tanggal),
+        "Jam Masuk": formatTime(record.jamMasuk),
+        "Jam Pulang": formatTime(record.jamPulang),
+        "Status": statusLabels[record.status] ?? record.status ?? "-",
+      });
+    });
+
+    const usedNames = new Set();
+
+    Object.entries(grouped).forEach(([groupKey, rows]) => {
+      const [jurusan, kelas] = groupKey.split("|||");
+
+      // Nama worksheet Excel maksimal 31 karakter.
+      const baseName = `${jurusan} - ${kelas}`
+        .replace(/[\\/?*[\]:]/g, "-")
+        .slice(0, 31);
+
+      let sheetName = baseName || "Absensi";
+      let suffix = 1;
+
+      while (usedNames.has(sheetName)) {
+        const ending = ` (${suffix++})`;
+        sheetName = `${baseName.slice(0, 31 - ending.length)}${ending}`;
+      }
+
+      usedNames.add(sheetName);
+
+      const worksheet = XLSX.utils.json_to_sheet(rows);
+
+      // Lebar kolom agar data mudah dibaca di Excel.
+      worksheet["!cols"] = [
+        { wch: 16 },
+        { wch: 28 },
+        { wch: 18 },
+        { wch: 25 },
+        { wch: 20 },
+        { wch: 14 },
+        { wch: 14 },
+        { wch: 16 },
+      ];
+
+      XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
+    });
+
+    const tanggalFile = String(data?.tanggal ?? new Date().toISOString())
+      .split("T")[0];
+
+    XLSX.writeFile(
+      workbook,
+      `Laporan_Absensi_${tanggalFile}.xlsx`
+    );
+  };
+
+
   const cards = [
     {
       label: "Total Siswa",
@@ -160,18 +247,32 @@ function Attendance() {
             </p>
           </div>
 
-          <Button
-            variant="outline"
-            disabled={refreshing}
-            onPress={() => fetchAttendance(true)}
-            className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm text-slate-700"
-          >
-            <RefreshCw
-              size={16}
-              className={refreshing ? "animate-spin" : ""}
-            />
-            Refresh
-          </Button>
+          
+  <div className="flex flex-col gap-2 sm:flex-row">
+    <Button
+      variant="outline"
+      disabled={loading || filteredRecords.length === 0}
+      onPress={handleExportExcel}
+      className="inline-flex items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm text-emerald-700"
+    >
+      <Download size={16} />
+      Download Excel
+    </Button>
+
+    <Button
+      variant="outline"
+      disabled={refreshing}
+      onPress={() => fetchAttendance(true)}
+      className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm text-slate-700"
+    >
+      <RefreshCw
+        size={16}
+        className={refreshing ? "animate-spin" : ""}
+      />
+      Refresh
+    </Button>
+  </div>
+
         </header>
 
         {error && (

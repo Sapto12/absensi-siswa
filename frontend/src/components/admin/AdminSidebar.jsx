@@ -1,9 +1,11 @@
+
 import {
     CalendarCheck,
     GraduationCap,
     LayoutDashboard,
     LogOut,
     Users,
+    Tags,
 } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 
@@ -24,6 +26,11 @@ const menuItems = [
         label: "Absensi",
         path: "/admin/attendance",
         icon: CalendarCheck,
+    },
+    {
+        label: "Kategori",
+        path: "/admin/categories",
+        icon: Tags,
     },
 ];
 

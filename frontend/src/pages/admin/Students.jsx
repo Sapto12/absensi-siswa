@@ -20,8 +20,16 @@ import api from "../../services/api.js";
 
 function Students() {
   const [students, setStudents] = useState([]);
+
+  const [categories, setCategories] = useState({
+    KELAS: [],
+    JURUSAN: [],
+  });
+
   const [loading, setLoading] = useState(true);
+  const [loadingCategories, setLoadingCategories] = useState(false);
   const [error, setError] = useState("");
+  const [categoryError, setCategoryError] = useState("");
   const [search, setSearch] = useState("");
 
   const [selectedStudent, setSelectedStudent] = useState(null);
@@ -49,6 +57,7 @@ function Students() {
 
   useEffect(() => {
     fetchStudents();
+    fetchCategories();
   }, []);
 
   // Mengambil daftar siswa
@@ -70,6 +79,35 @@ function Students() {
       );
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Mengambil daftar kategori kelas dan jurusan
+  const fetchCategories = async () => {
+    try {
+      setLoadingCategories(true);
+      setCategoryError("");
+
+      const response = await api.get("/categories");
+      const data = response.data?.data ?? response.data;
+
+      setCategories({
+        KELAS: Array.isArray(data?.KELAS)
+          ? data.KELAS
+          : [],
+        JURUSAN: Array.isArray(data?.JURUSAN)
+          ? data.JURUSAN
+          : [],
+      });
+    } catch (err) {
+      console.error("Gagal mengambil kategori:", err);
+
+      setCategoryError(
+        err.response?.data?.message ||
+          "Gagal mengambil kategori kelas dan jurusan."
+      );
+    } finally {
+      setLoadingCategories(false);
     }
   };
 
@@ -172,7 +210,15 @@ function Students() {
     const qrX = (pageWidth - qrSize) / 2;
     const qrY = 100;
 
-    pdf.addImage(qrCode, "PNG", qrX, qrY, qrSize, qrSize);
+    try {
+      pdf.addImage(qrCode, "PNG", qrX, qrY, qrSize, qrSize);
+    } catch (err) {
+      console.error("Gagal memasukkan QR Code ke PDF:", err);
+      setQrError(
+        "QR Code tidak dapat dimasukkan ke PDF. Pastikan backend mengirimkan data gambar QR Code yang valid."
+      );
+      return;
+    }
 
     pdf.setFont("helvetica", "bold");
     pdf.setFontSize(12);
@@ -200,30 +246,39 @@ function Students() {
   // Membuka form tambah siswa
   const openCreateForm = () => {
     setEditingStudent(null);
+
     setFormData({
       nis: "",
       nama: "",
       kelas: "",
       jurusan: "",
     });
+
     setFormError("");
     setFormSuccess("");
     setCreatedAccount(null);
+
+    fetchCategories();
     setFormOpen(true);
   };
 
   // Membuka form edit siswa
   const openEditForm = (student) => {
     setEditingStudent(student);
+
     setFormData({
       nis: student.nis ?? "",
       nama: student.nama ?? "",
       kelas: student.kelas ?? "",
       jurusan: student.jurusan ?? "",
     });
+
     setFormError("");
     setFormSuccess("");
+    setCategoryError("");
     setFormOpen(true);
+
+    fetchCategories();
   };
 
   const closeForm = () => {
@@ -310,15 +365,16 @@ function Students() {
     setDeleteError("");
   };
 
-  // Menghapus siswa dan akun login melalui backend.
-  // Penting: kirim ID numerik, bukan objek siswa atau event tombol.
+  // Menghapus siswa dan akun login melalui backend
   const handleDeleteStudent = async () => {
     if (!deleteStudentData || deleting) return;
 
     const studentId = Number(deleteStudentData.id);
 
     if (!Number.isInteger(studentId) || studentId <= 0) {
-      setDeleteError("ID siswa tidak valid. Silakan muat ulang halaman.");
+      setDeleteError(
+        "ID siswa tidak valid. Silakan muat ulang halaman."
+      );
       console.error("Data siswa tidak valid:", deleteStudentData);
       return;
     }
@@ -331,13 +387,11 @@ function Students() {
 
       await api.delete(`/students/${studentId}`);
 
-      // Tutup modal setelah backend menyatakan penghapusan berhasil.
       setDeleteStudentData(null);
       setFormSuccess(
         "Data siswa dan akun login berhasil dihapus. Riwayat absensi tetap disimpan."
       );
 
-      // Perbarui daftar tanpa memuat ulang halaman.
       await fetchStudents();
     } catch (err) {
       console.error(
@@ -701,7 +755,7 @@ function Students() {
                     <img
                       src={qrCode}
                       alt={`QR Code ${selectedStudent.nama}`}
-                      className="h-64 w-64"
+                      className="h-64 w-64 object-contain"
                     />
                   </div>
 
@@ -769,53 +823,156 @@ function Students() {
 
             <form onSubmit={handleSubmitStudent} className="p-5">
               <div className="space-y-4">
-                {[
-                  {
-                    name: "nis",
-                    label: "Nomor Induk Siswa (NIS)",
-                    placeholder: "Contoh: 2026001",
-                  },
-                  {
-                    name: "nama",
-                    label: "Nama Lengkap",
-                    placeholder: "Masukkan nama lengkap",
-                  },
-                  {
-                    name: "kelas",
-                    label: "Kelas",
-                    placeholder: "Contoh: XII RPL 1",
-                  },
-                  {
-                    name: "jurusan",
-                    label: "Jurusan",
-                    placeholder: "Contoh: Rekayasa Perangkat Lunak",
-                  },
-                ].map((field) => (
-                  <div key={field.name}>
-                    <label
-                      htmlFor={`student-${field.name}`}
-                      className="mb-1.5 block text-sm font-medium text-slate-700"
-                    >
-                      {field.label}
-                    </label>
+                {/* NIS */}
+                <div>
+                  <label
+                    htmlFor="student-nis"
+                    className="mb-1.5 block text-sm font-medium text-slate-700"
+                  >
+                    Nomor Induk Siswa (NIS)
+                  </label>
 
-                    <input
-                      id={`student-${field.name}`}
-                      name={field.name}
-                      type="text"
-                      value={formData[field.name]}
-                      onChange={handleFormChange}
-                      placeholder={field.placeholder}
-                      required
-                      maxLength={100}
-                      disabled={saving}
-                      autoComplete="off"
-                      className="h-11 w-full border border-slate-200 px-3 text-sm text-slate-900 outline-none placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 disabled:bg-slate-100"
-                    />
-                  </div>
-                ))}
+                  <input
+                    id="student-nis"
+                    name="nis"
+                    type="text"
+                    value={formData.nis}
+                    onChange={handleFormChange}
+                    placeholder="Contoh: 2026001"
+                    required
+                    maxLength={100}
+                    disabled={saving}
+                    autoComplete="off"
+                    className="h-11 w-full border border-slate-200 px-3 text-sm text-slate-900 outline-none placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 disabled:bg-slate-100"
+                  />
+                </div>
+
+                {/* Nama siswa */}
+                <div>
+                  <label
+                    htmlFor="student-nama"
+                    className="mb-1.5 block text-sm font-medium text-slate-700"
+                  >
+                    Nama Lengkap
+                  </label>
+
+                  <input
+                    id="student-nama"
+                    name="nama"
+                    type="text"
+                    value={formData.nama}
+                    onChange={handleFormChange}
+                    placeholder="Masukkan nama lengkap"
+                    required
+                    maxLength={100}
+                    disabled={saving}
+                    autoComplete="off"
+                    className="h-11 w-full border border-slate-200 px-3 text-sm text-slate-900 outline-none placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 disabled:bg-slate-100"
+                  />
+                </div>
+
+                {/* Dropdown kelas */}
+                <div>
+                  <label
+                    htmlFor="student-kelas"
+                    className="mb-1.5 block text-sm font-medium text-slate-700"
+                  >
+                    Kelas
+                  </label>
+
+                  <select
+                    id="student-kelas"
+                    name="kelas"
+                    value={formData.kelas}
+                    onChange={handleFormChange}
+                    required
+                    disabled={saving || loadingCategories}
+                    className="h-11 w-full border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 disabled:bg-slate-100"
+                  >
+                    <option value="">
+                      {loadingCategories
+                        ? "Memuat daftar kelas..."
+                        : categories.KELAS.length === 0
+                          ? "Belum ada kategori kelas"
+                          : "Pilih kelas"}
+                    </option>
+
+                    {formData.kelas &&
+                      !categories.KELAS.includes(formData.kelas) && (
+                        <option value={formData.kelas}>
+                          {formData.kelas} (data saat ini)
+                        </option>
+                      )}
+
+                    {categories.KELAS.map((kelas) => (
+                      <option key={kelas} value={kelas}>
+                        {kelas}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Dropdown jurusan */}
+                <div>
+                  <label
+                    htmlFor="student-jurusan"
+                    className="mb-1.5 block text-sm font-medium text-slate-700"
+                  >
+                    Jurusan
+                  </label>
+
+                  <select
+                    id="student-jurusan"
+                    name="jurusan"
+                    value={formData.jurusan}
+                    onChange={handleFormChange}
+                    required
+                    disabled={saving || loadingCategories}
+                    className="h-11 w-full border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 disabled:bg-slate-100"
+                  >
+                    <option value="">
+                      {loadingCategories
+                        ? "Memuat daftar jurusan..."
+                        : categories.JURUSAN.length === 0
+                          ? "Belum ada kategori jurusan"
+                          : "Pilih jurusan"}
+                    </option>
+
+                    {formData.jurusan &&
+                      !categories.JURUSAN.includes(formData.jurusan) && (
+                        <option value={formData.jurusan}>
+                          {formData.jurusan} (data saat ini)
+                        </option>
+                      )}
+
+                    {categories.JURUSAN.map((jurusan) => (
+                      <option key={jurusan} value={jurusan}>
+                        {jurusan}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
 
+              {/* Error kategori */}
+              {categoryError && (
+                <div className="mt-4 border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-600">
+                  <p>{categoryError}</p>
+
+                  <button
+                    type="button"
+                    onClick={fetchCategories}
+                    disabled={loadingCategories}
+                    className="mt-2 font-medium underline disabled:opacity-50"
+                  >
+                    {loadingCategories
+                      ? "Memuat..."
+                      : "Muat ulang kategori"}
+                  </button>
+                </div>
+              )}
+
+              {/* Error form */}
               {formError && (
                 <div className="mt-4 border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-600">
                   {formError}
@@ -835,7 +992,7 @@ function Students() {
                 <Button
                   type="submit"
                   className="bg-blue-600 text-white"
-                  disabled={saving}
+                  disabled={saving || loadingCategories}
                 >
                   {saving ? (
                     <LoaderCircle
@@ -899,7 +1056,7 @@ function Students() {
 
               <Button
                 className="bg-red-600 text-white"
-                onPress={() => handleDeleteStudent()}
+                onPress={handleDeleteStudent}
                 disabled={deleting}
               >
                 {deleting && (
